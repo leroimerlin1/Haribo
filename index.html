@@ -7,7 +7,8 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, orderBy, query } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, orderBy, query, doc, setDoc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
     const firebaseConfig = {
       apiKey: "AIzaSyCaNdux3BIM1cI1InFkt2c_N0NOz8QyrRI",
       authDomain: "haribio-7d576.firebaseapp.com",
@@ -17,6 +18,7 @@
       appId: "1:311258034136:web:a42229900a1c8a326fccad",
       measurementId: "G-P8JPXSHPMC"
     };
+
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     window._db = db;
@@ -25,10 +27,20 @@
     window._fsGet = getDocs;
     window._fsQ = query;
     window._fsOrder = orderBy;
+    window._fsDoc = doc;
+    window._fsSet = setDoc;
+    window._fsUpdate = updateDoc;
+    window._fsDelete = deleteDoc;
+
     document.addEventListener('DOMContentLoaded', () => {
-      setTimeout(() => { if(window.loadAvisFromFirestore) window.loadAvisFromFirestore(); }, 300);
+      setTimeout(() => { 
+        if(window.loadAvisFromFirestore) window.loadAvisFromFirestore(); 
+        if(window.loadProductsFromFirestore) window.loadProductsFromFirestore();
+      }, 300);
     });
   </script>
+  <!-- Le reste du <head> reste identique (styles, fonts, etc.) -->
+  <!-- ... (je garde le style original pour ne pas alourdir) ... -->
   <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <style>
 :root {
