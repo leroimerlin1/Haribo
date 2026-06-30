@@ -438,8 +438,13 @@ textarea{min-height:80px;resize:vertical;}
         <input class="admin-input" id="af-video" placeholder="ex: dry_black.mp4">
       </div>
       <div class="admin-field">
-        <label class="admin-label">Image (nom fichier, si pas de vidéo)</label>
-        <input class="admin-input" id="af-image" placeholder="ex: caliplates.jpg">
+        <label class="admin-label">Image du produit</label>
+        <div id="af-image-preview-wrap" style="margin-bottom:10px;display:none;">
+          <img id="af-image-preview" src="" style="width:100%;max-height:180px;object-fit:cover;border-radius:10px;border:1px solid rgba(255,215,0,0.15);display:block;">
+        </div>
+        <input type="file" accept="image/*" id="af-image-file" class="admin-input" style="padding:9px;">
+        <div id="af-image-upload-status" style="font-size:0.78rem;color:var(--cream-dim);margin-top:6px;min-height:14px;"></div>
+        <input type="hidden" id="af-image">
       </div>
       <div class="admin-field">
         <label class="admin-label">Strains</label>
@@ -708,6 +713,32 @@ if (tg) {
   tgUser = tg.initDataUnsafe?.user || null;
 }
 
+// --- CLOUDINARY (upload d'images depuis le panel admin) ---
+// 👉 Remplace ces deux valeurs par celles de TON compte Cloudinary :
+// 1. Crée un compte gratuit sur https://cloudinary.com
+// 2. Dans Dashboard, note ton "Cloud name"
+// 3. Va dans Settings > Upload > Upload presets > Add upload preset
+//    - Signing Mode : "Unsigned"
+//    - Sauvegarde et copie le nom du preset
+const CLOUDINARY_CLOUD_NAME = 'TON_CLOUD_NAME';
+const CLOUDINARY_UPLOAD_PRESET = 'TON_UPLOAD_PRESET';
+
+async function uploadImageToCloudinary(file){
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+    method: 'POST',
+    body: formData
+  });
+  if(!res.ok){
+    const errText = await res.text();
+    throw new Error('Upload échoué: ' + errText);
+  }
+  const data = await res.json();
+  return data.secure_url;
+}
+
 const BASE_PRODUCTS = {};
 
 // --- PRODUITS : stockage partagé via Firestore (collection "products") ---
@@ -956,14 +987,62 @@ let adminRestockValue=false;
 function openAdminForm(key){
   const formSection=document.getElementById('admin-form-section');formSection.style.display='block';formSection.scrollIntoView({behavior:'smooth'});
   document.getElementById('admin-edit-key').value=key||'';
-  if(key){document.getElementById('admin-form-title').textContent='✏️ Modifier le produit';const p=products[key];document.getElementById('af-title').value=p.title||'';document.getElementById('af-category').value=p.category||'';document.getElementById('af-farm').value=p.farm||'';document.getElementById('af-video').value=p.video||'';document.getElementById('af-image').value=p.image||'';document.getElementById('af-strain').value=p.strain||'';document.getElementById('af-description').value=p.description||'';adminRestockValue=!!p.restock;renderQtyRows(p.quantities||[]);}
-  else{document.getElementById('admin-form-title').textContent='➕ Nouveau produit';['af-title','af-category','af-farm','af-video','af-image','af-strain','af-description'].forEach(id=>document.getElementById(id).value='');adminRestockValue=false;renderQtyRows([{qty:'',price:''}]);}
+  document.getElementById('af-image-file').value='';
+  document.getElementById('af-image-upload-status').textContent='';
+  if(key){
+    document.getElementById('admin-form-title').textContent='✏️ Modifier le produit';
+    const p=products[key];
+    document.getElementById('af-title').value=p.title||'';
+    document.getElementById('af-category').value=p.category||'';
+    document.getElementById('af-farm').value=p.farm||'';
+    document.getElementById('af-video').value=p.video||'';
+    document.getElementById('af-image').value=p.image||'';
+    document.getElementById('af-strain').value=p.strain||'';
+    document.getElementById('af-description').value=p.description||'';
+    adminRestockValue=!!p.restock;
+    renderQtyRows(p.quantities||[]);
+    if(p.image){
+      document.getElementById('af-image-preview').src=p.image;
+      document.getElementById('af-image-preview-wrap').style.display='block';
+    } else {
+      document.getElementById('af-image-preview-wrap').style.display='none';
+    }
+  }
+  else{
+    document.getElementById('admin-form-title').textContent='➕ Nouveau produit';
+    ['af-title','af-category','af-farm','af-video','af-image','af-strain','af-description'].forEach(id=>document.getElementById(id).value='');
+    adminRestockValue=false;
+    renderQtyRows([{qty:'',price:''}]);
+    document.getElementById('af-image-preview-wrap').style.display='none';
+  }
   updateRestockButtons();
 }
 function closeAdminForm(){document.getElementById('admin-form-section').style.display='none';}
 function setRestockAdmin(val){adminRestockValue=val;updateRestockButtons();}
 function updateRestockButtons(){document.getElementById('restock-no').classList.toggle('active',!adminRestockValue);document.getElementById('restock-yes').classList.toggle('active',adminRestockValue);}
 window.setRestockAdmin=setRestockAdmin;
+
+document.getElementById('af-image-file').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const status = document.getElementById('af-image-upload-status');
+  const preview = document.getElementById('af-image-preview');
+  const previewWrap = document.getElementById('af-image-preview-wrap');
+  status.textContent = '⏳ Upload en cours...';
+  status.style.color = 'var(--orange)';
+  try{
+    const url = await uploadImageToCloudinary(file);
+    document.getElementById('af-image').value = url;
+    preview.src = url;
+    previewWrap.style.display = 'block';
+    status.textContent = '✅ Image uploadée avec succès !';
+    status.style.color = 'var(--green-light)';
+  }catch(err){
+    console.error(err);
+    status.textContent = '❌ Erreur upload (vérifie ton cloud name / preset Cloudinary)';
+    status.style.color = '#ff4422';
+  }
+});
 
 function renderQtyRows(quantities){const cont=document.getElementById('qty-rows');cont.innerHTML='';quantities.forEach((q,i)=>{addQtyRowFilled(q.qty,q.price,i);});}
 function addQtyRowFilled(qtyVal,priceVal,idx){const cont=document.getElementById('qty-rows');const row=document.createElement('div');row.className='admin-qty-row';row.dataset.idx=idx||cont.children.length;row.innerHTML=`<input class="admin-input" placeholder="Quantité (ex: 5G)" value="${qtyVal||''}" style="font-size:0.88rem;padding:9px 10px;"><input class="admin-input" placeholder="Prix (ex: 70 €)" value="${priceVal||''}" style="font-size:0.88rem;padding:9px 10px;"><button class="admin-qty-del" onclick="this.parentElement.remove()">×</button>`;cont.appendChild(row);}
